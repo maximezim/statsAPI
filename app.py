@@ -9,7 +9,7 @@ import redis.asyncio as redis
 
 from interactions import (
     InteractionCreate, Token, insert_interaction, get_all_interactions, 
-    get_interactions_by_user, init_db  
+    get_interactions_by_user, init_db
 )
 from jwtUtils import set_secret_key, role_required, create_access_token
 from compute_stats import compute_usage_stats, compute_interactions_stats, compute_feedback_stats
@@ -95,3 +95,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     
     return {"access_token": access_token, "token_type": "bearer"}
+
+# @app.get("/stats/predict/{user_id}", dependencies=[Depends(role_required("admin"))])
+# async def predict_next(user_id: int):
+#     return predict_next_action(user_id)
