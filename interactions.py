@@ -1,3 +1,4 @@
+# interactions.py
 from sqlalchemy import Column, Integer, String, DateTime, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -19,16 +20,18 @@ class InteractionCreate(BaseModel):
     action: str
     timestamp: datetime
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
 def get_database_url():
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise ValueError("DATABASE_URL environment variable not set")
-    print(f"DATABASE_URL: {db_url}")  # Debugging
     return db_url
 
 def get_engine():
     db_url = get_database_url()
-    print(f"Connecting to database URL: {db_url}")  # Debugging
     return create_engine(db_url)
 
 def get_session():

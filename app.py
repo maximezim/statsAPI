@@ -8,14 +8,18 @@ from fastapi import FastAPI, Depends, HTTPException, status
 import redis.asyncio as redis  
 
 from interactions import (
-    InteractionCreate, insert_interaction, get_all_interactions, 
+    InteractionCreate, Token, insert_interaction, get_all_interactions, 
     get_interactions_by_user, init_db  
 )
-from jwtUtils import set_secret_key, role_required
+from jwtUtils import set_secret_key, role_required, create_access_token
 from compute_stats import compute_usage_stats, compute_interactions_stats, compute_feedback_stats
 from fastapi.concurrency import run_in_threadpool
 
-redis_client = None  
+from fastapi.security import OAuth2PasswordRequestForm
+from datetime import timedelta
+
+redis_client = None
+admin_credentials = {}  
 app = FastAPI()
 
 @app.on_event("startup")
@@ -23,18 +27,19 @@ async def startup_event():
     global redis_client
     redis_client = redis.from_url("redis://redis", encoding="utf8", decode_responses=True)
     
-    # Generate SECRET_KEY
     SECRET_KEY = secrets.token_urlsafe(32)
     ALGORITHM = os.getenv("ALGORITHM", "HS256")
     
     # Set SECRET_KEY in jwtUtils
     set_secret_key(SECRET_KEY)
-    
-    # Log SECRET_KEY in Docker logs
     logging.basicConfig(level=logging.INFO)
     logging.info(f"SECRET_KEY: {SECRET_KEY}")
+
+    password = secrets.token_urlsafe(16)
+    admin_credentials['username'] = "admin"
+    admin_credentials['password'] = password
+    logging.info(f"Admin credentials: {admin_credentials}")
     
-    # Initialize the database
     init_db()
 
 @app.post("/interactions/")
@@ -70,3 +75,23 @@ async def get_interactions_stats():
 async def get_feedback_stats():
     feedback_stats = await compute_feedback_stats()
     return {"feedback_stats": feedback_stats}
+
+@app.post("/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    username = form_data.username
+    password = form_data.password
+    
+    if (username != admin_credentials['username']) or (password != admin_credentials['password']):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    access_token_expires = timedelta(minutes=30)  
+    access_token = create_access_token(
+        data={"sub": username, "role": "admin"},
+        expires_delta=access_token_expires
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer"}

@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 SECRET_KEY = None  # Will be set dynamically
-ALGORITHM = "HS256"  
+ALGORITHM = "HS256"
 
 def set_secret_key(secret_key):
     global SECRET_KEY
@@ -26,15 +26,26 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise ValueError("SECRET_KEY not set")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("sub")
+        username: str = payload.get("sub")
         role: str = payload.get("role")
-        return {"user_id": user_id, "role": role}
+        if username is None or role is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+            )
+        return {"username": username, "role": role}
     except jwt.PyJWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token",
+        )
 
 def role_required(required_role: str):
     def role_dependency(current_user: dict = Depends(get_current_user)):
         if current_user["role"] != required_role:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Operation not permitted")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Operation not permitted",
+            )
         return current_user
     return role_dependency
