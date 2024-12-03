@@ -3,16 +3,17 @@ import os
 import logging
 import secrets
 import json
+import uuid 
 
 from fastapi import FastAPI, Depends, HTTPException, status
 import redis.asyncio as redis  
 
 from interactions import (
-    InteractionCreate, Token, insert_interaction, get_all_interactions, 
-    get_interactions_by_user, init_db
+    InteractionCreate, Token, Location, CreateUserRequest, Login, insert_interaction, get_all_interactions, 
+    get_interactions_by_user, init_db, create_user, login
 )
 from jwtUtils import set_secret_key, role_required, create_access_token
-from compute_stats import compute_usage_stats, compute_interactions_stats, compute_feedback_stats
+from utils import compute_usage_stats, compute_interactions_stats, compute_feedback_stats
 from fastapi.concurrency import run_in_threadpool
 
 from fastapi.security import OAuth2PasswordRequestForm
@@ -52,9 +53,9 @@ async def read_interactions():
     interactions = await run_in_threadpool(get_all_interactions)
     return interactions
 
-@app.get("/interactions/{user_id}", dependencies=[Depends(role_required("admin"))])
-async def read_user_interactions(user_id: int):
-    interactions = await run_in_threadpool(get_interactions_by_user, user_id)
+@app.get("/interactions/{username}", dependencies=[Depends(role_required("admin"))])
+async def read_user_interactions(username: str):
+    interactions = await run_in_threadpool(get_interactions_by_user, username)
     return interactions
 
 @app.get("/stats/usage", dependencies=[Depends(role_required("admin"))])
@@ -96,6 +97,16 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     
     return {"access_token": access_token, "token_type": "bearer"}
 
-# @app.get("/stats/predict/{user_id}", dependencies=[Depends(role_required("admin"))])
-# async def predict_next(user_id: int):
-#     return predict_next_action(user_id)
+
+@app.post("/create_user")
+async def create_user_end(user: CreateUserRequest):
+    created_user = await run_in_threadpool(create_user, user.username, user.password, False)
+    return {"message": "User created", "username": created_user.username}
+
+
+@app.post("/login")
+async def login_end(user: Login):
+    user = await run_in_threadpool(login,user.username, user.password)
+    if not user:
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    return {"message": "User logged in"}
