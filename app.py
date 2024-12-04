@@ -1,4 +1,5 @@
 # app.py
+
 import os
 import logging
 import secrets
@@ -22,14 +23,22 @@ from datetime import timedelta
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from fastapi.encoders import jsonable_encoder
 
+from utils import (
+    predict_next_action,
+    train_markov_model,
+    predict_next_action_ml,
+    predict_next_action_ml_async
+)
+import joblib
 
 redis_client = None
 admin_credentials = {}  
 app = FastAPI()
+model = None
 
 @app.on_event("startup")
 async def startup_event():
-    global redis_client
+    global redis_client, model
     redis_client = redis.from_url("redis://redis", encoding="utf8", decode_responses=True)
 
     SECRET_KEY = secrets.token_urlsafe(32)
@@ -49,6 +58,26 @@ async def startup_event():
     else:
         logging.info(f"Admin user '{admin_username}' already exists.")
 
+    # Model Training and Loading
+    model_path = 'models/markov_model.pkl'
+    if os.path.exists(model_path):
+        try:
+            model = joblib.load(model_path)
+            logging.info("Markov model loaded successfully.")
+        except Exception as e:
+            logging.error(f"Error loading the Markov model: {e}")
+            model = None
+    else:
+        logging.info("Markov model not found. Training a new model.")
+        model = await run_in_threadpool(train_markov_model)
+        if model:
+            # Ensure the models directory exists
+            os.makedirs(os.path.dirname(model_path), exist_ok=True)
+            # Save the trained model
+            joblib.dump(model, model_path)
+            logging.info("Markov model trained and saved successfully.")
+        else:
+            logging.warning("Not enough data to train the Markov model.")
 
 @app.post("/interactions/")
 async def create_interaction(
@@ -147,3 +176,21 @@ async def login_end(user: Login):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+@app.get("/predict_next_action/{username}", dependencies=[Depends(role_required("admin"))])
+async def predict_next_action_endpoint(username: str):
+    """
+    Predicts the next action for a given user.
+    """
+    prediction = await run_in_threadpool(predict_next_action, username)
+    return prediction
+
+# If using ML Model
+@app.get("/predict_next_action_ml/{username}", dependencies=[Depends(role_required("admin"))])
+async def predict_next_action_ml_endpoint(username: str):
+    """
+    Predicts the next action for a given user using the ML model.
+    """
+    if model is None:
+        raise HTTPException(status_code=500, detail="Prediction model is not available.")
+    prediction = await run_in_threadpool(predict_next_action_ml, username, model)
+    return prediction

@@ -1,3 +1,5 @@
+# docker-compose.yml
+
 services:
   db:
     image: postgres:17
@@ -13,11 +15,12 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
 
-
   web:
     build: .
     ports:
       - "80:80"
+    volumes:
+      - ./models:/app/models  # Mount the models directory
     depends_on:
       db:
         condition: service_healthy
@@ -28,7 +31,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     env_file:
       - .env
-      
+
   redis:
     image: redis:alpine
 
