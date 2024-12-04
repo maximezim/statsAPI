@@ -32,6 +32,12 @@ services:
   redis:
     image: redis:alpine
 
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+
 volumes:
   db_data:
   redis_data:

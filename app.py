@@ -9,15 +9,18 @@ from fastapi import FastAPI, Depends, HTTPException, status
 import redis.asyncio as redis  
 
 from interactions import (
-    InteractionCreate, Token, Location, CreateUserRequest, Login, insert_interaction, get_all_interactions, 
-    get_interactions_by_user, init_db, create_user, login
+    InteractionCreate, Token, Location, CreateUserRequest, Login, insert_interaction, get_all_interactions,
+    get_interactions_by_user, init_db, create_user, login, get_user 
 )
-from jwtUtils import set_secret_key, role_required, create_access_token
+
+from jwtUtils import set_secret_key, role_required, create_access_token, get_current_user
 from utils import compute_usage_stats, compute_interactions_stats, compute_feedback_stats
 from fastapi.concurrency import run_in_threadpool
 
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+
 
 redis_client = None
 admin_credentials = {}  
@@ -27,26 +30,33 @@ app = FastAPI()
 async def startup_event():
     global redis_client
     redis_client = redis.from_url("redis://redis", encoding="utf8", decode_responses=True)
-    
+
     SECRET_KEY = secrets.token_urlsafe(32)
-    ALGORITHM = os.getenv("ALGORITHM", "HS256")
-    
-    # Set SECRET_KEY in jwtUtils
     set_secret_key(SECRET_KEY)
     logging.basicConfig(level=logging.INFO)
-    logging.info(f"SECRET_KEY: {SECRET_KEY}")
+    logging.info("SECRET_KEY is set.")
 
-    password = secrets.token_urlsafe(16)
-    admin_credentials['username'] = "admin"
-    admin_credentials['password'] = password
-    logging.info(f"Admin credentials: {admin_credentials}")
-    
-    init_db()
+    await run_in_threadpool(init_db)
+
+    admin_username = "admin"
+    admin_password = secrets.token_urlsafe(16)  
+
+    admin_user = await run_in_threadpool(get_user, admin_username)
+    if not admin_user:
+        await run_in_threadpool(create_user, admin_username, admin_password, True)
+        logging.info(f"Admin user '{admin_username}' created with password '{admin_password}'")
+    else:
+        logging.info(f"Admin user '{admin_username}' already exists.")
+
 
 @app.post("/interactions/")
-async def create_interaction(interaction: InteractionCreate):
-    await run_in_threadpool(insert_interaction, interaction)
+async def create_interaction(
+    interaction: InteractionCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    await run_in_threadpool(insert_interaction, current_user['username'], interaction)
     return {"message": "Interaction enregistrée"}
+
 
 @app.get("/interactions/", dependencies=[Depends(role_required("admin"))])
 async def read_interactions():
@@ -77,36 +87,34 @@ async def get_feedback_stats():
     feedback_stats = await compute_feedback_stats()
     return {"feedback_stats": feedback_stats}
 
-@app.post("/token", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    username = form_data.username
-    password = form_data.password
-    
-    if (username != admin_credentials['username']) or (password != admin_credentials['password']):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    access_token_expires = timedelta(minutes=30)  
-    access_token = create_access_token(
-        data={"sub": username, "role": "admin"},
-        expires_delta=access_token_expires
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer"}
-
 
 @app.post("/create_user")
 async def create_user_end(user: CreateUserRequest):
-    created_user = await run_in_threadpool(create_user, user.username, user.password, False)
-    return {"message": "User created", "username": created_user.username}
+    try:
+        created_user = await run_in_threadpool(create_user, user.username, user.password, False)
+        return {"message": "User created", "username": created_user.username}
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    except SQLAlchemyError as e:
+        # Handle other SQLAlchemy exceptions
+        raise HTTPException(status_code=500, detail="Database error")
+    except Exception as e:
+        # Handle unexpected exceptions
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@app.post("/login")
+@app.post("/login", response_model=Token)
 async def login_end(user: Login):
-    user = await run_in_threadpool(login,user.username, user.password)
-    if not user:
+    user_in_db = await run_in_threadpool(login, user.username, user.password)
+    if not user_in_db:
         raise HTTPException(status_code=400, detail="Invalid credentials")
-    return {"message": "User logged in"}
+
+    role = "admin" if user_in_db.isAdmin else "user"
+    access_token_expires = timedelta(minutes=30)
+    access_token = create_access_token(
+        data={"sub": user_in_db.username, "role": role},
+        expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+

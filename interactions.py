@@ -1,5 +1,6 @@
 # interactions.py
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, UUID, create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
@@ -11,16 +12,18 @@ Base = declarative_base()
 
 class Interaction(Base):
     __tablename__ = 'interactions'
-    username = Column(String, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, index=True)  
+    username = Column(String)
     action = Column(String)
     timestamp = Column(DateTime)
+
 
 class User(Base):
     __tablename__ = 'users'
     username = Column(String, primary_key=True, index=True)
     password = Column(String)
     isAdmin = Column(Boolean)
-    Location = Column(String)
+    location = Column(String)  
 
 class CreateUserRequest(BaseModel):
     username: str
@@ -61,11 +64,11 @@ def init_db():
     engine = get_engine()
     Base.metadata.create_all(bind=engine)
 
-def insert_interaction(interaction: InteractionCreate):
+def insert_interaction(username: str, interaction: InteractionCreate):
     db: Session = get_session()
     try:
         db_interaction = Interaction(
-            username=interaction.username,
+            username=username,
             action=interaction.action,
             timestamp=interaction.timestamp
         )
@@ -92,7 +95,7 @@ def get_interactions_by_user(username: str):
     finally:
         db.close()
 
-def create_user(username: str, password: str, isAdmin: Boolean=False):
+def create_user(username: str, password: str, isAdmin: bool = False):
     db: Session = get_session()
     try:
         passw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
@@ -105,8 +108,11 @@ def create_user(username: str, password: str, isAdmin: Boolean=False):
         db.commit()
         db.refresh(db_user)
         return db_user
+    except IntegrityError:
+        raise
     finally:
         db.close()
+
 
 def login(username: str, password: str):
     db: Session = get_session()
@@ -115,5 +121,13 @@ def login(username: str, password: str):
         if user and bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
             return user
         return None
+    finally:
+        db.close()
+
+def get_user(username: str):
+    db: Session = get_session()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        return user
     finally:
         db.close()
