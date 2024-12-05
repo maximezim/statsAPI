@@ -9,7 +9,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 import redis.asyncio as redis  
 
 from interactions import (
-    InteractionCreate, Token, Location, CreateUserRequest, Login, ValidCookieAndUser, Token, insert_interaction, get_all_interactions,
+    InteractionCreate, Token, Location, CreateUserRequest, Login, ValidCookieAndUser, Token, InteractionsList, insert_interaction, get_all_interactions,
     get_interactions_by_user, init_db, create_user, login, get_user
 )
 
@@ -69,12 +69,15 @@ async def create_interaction(
 ):
     await run_in_threadpool(insert_interaction, username, interaction)
     
-    # Invalidate relevant cache keys
+    cache_key = f"interactions_{username}"
+    
+    interactions = await run_in_threadpool(get_interactions_by_user, username)
+    interactions_data = jsonable_encoder(interactions)
+    
+    await redis_client.set(cache_key, json.dumps(interactions_data), ex=300)  # 5 minutes expiration
+    
     await redis_client.delete("usage_stats")
     await redis_client.delete("interactions_stats")
-    await redis_client.delete("feedback_stats")
-    await redis_client.delete("interactions_all")
-    await redis_client.delete(f"interactions_{username}")
     
     return {"message": "Interaction enregistrée"}
 
@@ -92,13 +95,13 @@ async def read_interactions():
 
 @app.get("/interactions/{username}", dependencies=[Depends(role_required("admin"))])
 async def read_user_interactions(username: str):
-    cache_key = f"interactions_{username}"
-    cached_data = await redis_client.get(cache_key)
-    if cached_data:
-        return json.loads(cached_data)
     interactions = await run_in_threadpool(get_interactions_by_user, username)
+    
+    if not interactions:
+        raise HTTPException(status_code=404, detail=f"No interactions found for user {username}")
+    
     interactions_data = jsonable_encoder(interactions)
-    await redis_client.set(cache_key, json.dumps(interactions_data), ex=300)  # Cache for 5 minutes
+    await redis_client.set(f"interactions_{username}", json.dumps(interactions_data), ex=300)
     return interactions_data
 
 
@@ -177,3 +180,9 @@ async def get_next_action_prediction(username: str):
     await redis_client.set(cache_key, json.dumps(prediction), ex=1800)  # Cache for 30 minutes
     return prediction
     
+@app.post("/set/user-interactions/list", dependencies=[Depends(role_required("admin"))])
+async def set_user_interactions_list(il: InteractionsList):
+    interactions_list = il.interactions.split(",")
+    for interaction in interactions_list:
+        await run_in_threadpool(insert_interaction, il.username, InteractionCreate(action=interaction))
+    return {"message": "Interactions enregistrées"}

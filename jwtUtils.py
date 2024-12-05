@@ -18,7 +18,7 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     if SECRET_KEY is None:
         raise ValueError("SECRET_KEY not set")
     to_encode = data.copy()
-    expire = datetime.now() + (expires_delta or timedelta(minutes=30))
+    expire = datetime.now() + (expires_delta or timedelta(minutes=300))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 

@@ -2,7 +2,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, UUID, create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker, Session, scoped_session
 from pydantic import BaseModel
 from datetime import datetime
 import os
@@ -49,6 +49,10 @@ class Location(BaseModel):
     latitude: float
     longitude: float
 
+class InteractionsList(BaseModel):
+    interactions: str
+    username: str
+
 def get_database_url():
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
@@ -61,7 +65,8 @@ def get_engine():
 
 def get_session():
     engine = get_engine()
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    SessionLocal = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
+
     return SessionLocal()
 
 def init_db():
