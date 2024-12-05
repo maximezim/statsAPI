@@ -73,12 +73,12 @@ def isTokenValidAndUser(token: str):
         # check if the token is expired
         expire = payload.get("exp")
         if expire < datetime.now().timestamp():
-            return False, None
+            return {"valid": False, "username": None}
         username: str = payload.get("sub")
         role: str = payload.get("role")
         if username is None or role is None:
-            return False, None
-        return True, username
+            return {"valid": False, "username": None}
+        return {"valid": True, "username": username}
     except jwt.PyJWTError:
-        return False, None
+        return {"valid": False, "username": None}
     

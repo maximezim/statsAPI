@@ -9,7 +9,7 @@ from fastapi import FastAPI, Depends, HTTPException, status
 import redis.asyncio as redis  
 
 from interactions import (
-    InteractionCreate, Token, Location, CreateUserRequest, Login, ValidCookieAndUser, insert_interaction, get_all_interactions,
+    InteractionCreate, Token, Location, CreateUserRequest, Login, ValidCookieAndUser, Token, insert_interaction, get_all_interactions,
     get_interactions_by_user, init_db, create_user, login, get_user
 )
 
@@ -163,7 +163,7 @@ async def login_end(user: Login):
 
 
 @app.post("/check-token", response_model=ValidCookieAndUser)
-async def verify_cookie(cookie: str):
-    response = await run_in_threadpool(isTokenValidAndUser, cookie)
+async def verify_cookie(token: Token):
+    response = await run_in_threadpool(isTokenValidAndUser, token.access_token)
     return response
     
