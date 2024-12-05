@@ -64,3 +64,21 @@ def get_current_username_optional(token: str = Depends(oauth2_scheme)):
         return username
     except jwt.PyJWTError:
         return "anonymous"
+
+def isTokenValidAndUser(token: str):
+    if SECRET_KEY is None:
+        raise ValueError("SECRET_KEY not set")
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # check if the token is expired
+        expire = payload.get("exp")
+        if expire < datetime.now().timestamp():
+            return False, None
+        username: str = payload.get("sub")
+        role: str = payload.get("role")
+        if username is None or role is None:
+            return False, None
+        return True, username
+    except jwt.PyJWTError:
+        return False, None
+    

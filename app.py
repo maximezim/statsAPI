@@ -9,11 +9,11 @@ from fastapi import FastAPI, Depends, HTTPException, status
 import redis.asyncio as redis  
 
 from interactions import (
-    InteractionCreate, Token, Location, CreateUserRequest, Login, insert_interaction, get_all_interactions,
-    get_interactions_by_user, init_db, create_user, login, get_user 
+    InteractionCreate, Token, Location, CreateUserRequest, Login, ValidCookieAndUser, insert_interaction, get_all_interactions,
+    get_interactions_by_user, init_db, create_user, login, get_user
 )
 
-from jwtUtils import set_secret_key, role_required, create_access_token, get_current_user, get_current_username_optional
+from jwtUtils import set_secret_key, role_required, create_access_token, get_current_user, get_current_username_optional, isTokenValidAndUser
 from utils import compute_usage_stats, compute_interactions_stats, compute_feedback_stats
 from fastapi.concurrency import run_in_threadpool
 
@@ -162,3 +162,8 @@ async def login_end(user: Login):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+@app.port("/api/verify-cookie", response_model=ValidCookie)
+async def verify_cookie(cookie: str):
+    response = await run_in_threadpool(isTokenValidAndUser, cookie)
+    return response
+    

@@ -37,6 +37,10 @@ class Login(BaseModel):
 class InteractionCreate(BaseModel):
     action: str
 
+class ValidCookieAndUser(BaseModel):
+    valid: bool
+    username: Optional[str]
+
 class Token(BaseModel):
     access_token: str
     token_type: str
