@@ -162,7 +162,7 @@ async def login_end(user: Login):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@app.port("/api/verify-cookie", response_model=ValidCookie)
+@app.post("/check-token", response_model=ValidCookieAndUser)
 async def verify_cookie(cookie: str):
     response = await run_in_threadpool(isTokenValidAndUser, cookie)
     return response
