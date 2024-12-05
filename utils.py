@@ -73,46 +73,63 @@ async def compute_feedback_stats():
 
 
 def predict_next_action_sync(username):
+    import numpy as np
+    from sklearn.preprocessing import LabelEncoder
+
     db = get_session()
     # Fetch interactions for the user, ordered by timestamp
     user_interactions = db.query(Interaction).filter_by(username=username).order_by(Interaction.timestamp).all()
     db.close()
 
     if not user_interactions:
-        return {"message": f"No interactions found for username {username}"}
+        return {"message": f"Aucune interaction trouvée pour l'utilisateur {username}"}
 
-    # Build transition counts
-    transitions = defaultdict(lambda: defaultdict(int))
-    previous_action = None
-    for interaction in user_interactions:
-        current_action = interaction.action
-        if previous_action is not None:
-            transitions[previous_action][current_action] += 1
-        previous_action = current_action
+    # Extract the sequence of actions
+    actions_sequence = [interaction.action for interaction in user_interactions]
 
-    # Calculate transition probabilities
-    transition_prob = {}
-    for prev_action, next_actions in transitions.items():
-        total = sum(next_actions.values())
-        transition_prob[prev_action] = {action: count / total for action, count in next_actions.items()}
+    # Build the list of unique actions
+    all_actions = list(set(actions_sequence))
 
-    # Get the last action the user performed
-    last_action = user_interactions[-1].action
+    # Encode actions as integers
+    le = LabelEncoder()
+    le.fit(all_actions)
+    encoded_actions = le.transform(actions_sequence)
 
-    # Predict the next action based on transition probabilities
-    if last_action not in transition_prob:
-        return {"message": f"No transition data available after action '{last_action}' for username {username}"}
+    # Build the transition matrix
+    n_actions = len(le.classes_)
+    transition_matrix = np.zeros((n_actions, n_actions))
 
-    next_actions = transition_prob[last_action]
-    predicted_action = max(next_actions, key=next_actions.get)
-    probability = next_actions[predicted_action]
+    for (current_action, next_action) in zip(encoded_actions[:-1], encoded_actions[1:]):
+        transition_matrix[current_action][next_action] += 1
+
+    # Normalize the transition matrix to get probabilities
+    row_sums = transition_matrix.sum(axis=1)
+    row_sums[row_sums == 0] = 1  # Avoid division by zero
+    transition_prob_matrix = transition_matrix / row_sums[:, np.newaxis]
+
+    # Get the last action performed by the user
+    last_action = actions_sequence[-1]
+    last_action_encoded = le.transform([last_action])[0]
+
+    # Predict the next action
+    next_action_probs = transition_prob_matrix[last_action_encoded]
+
+    if np.all(next_action_probs == 0):
+        return {"message": f"Aucune donnée de transition disponible après l'action '{last_action}' pour l'utilisateur {username}"}
+
+    predicted_next_action_encoded = np.argmax(next_action_probs)
+    predicted_next_action = le.inverse_transform([predicted_next_action_encoded])[0]
+    probability = next_action_probs[predicted_next_action_encoded]
 
     return {
         "username": username,
         "last_action": last_action,
-        "predicted_next_action": predicted_action,
-        "probability": probability
+        "predicted_next_action": predicted_next_action,
+        "probability": float(probability)
     }
+
+async def predict_next_action(username):
+    return await asyncio.to_thread(predict_next_action_sync, username)
 
 async def predict_next_action(username):
     return await asyncio.to_thread(predict_next_action_sync, username)

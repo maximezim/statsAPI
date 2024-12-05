@@ -14,7 +14,7 @@ from interactions import (
 )
 
 from jwtUtils import set_secret_key, role_required, create_access_token, get_current_user, get_current_username_optional, isTokenValidAndUser
-from utils import compute_usage_stats, compute_interactions_stats, compute_feedback_stats
+from utils import compute_usage_stats, compute_interactions_stats, compute_feedback_stats, predict_next_action
 from fastapi.concurrency import run_in_threadpool
 
 from fastapi.security import OAuth2PasswordRequestForm
@@ -166,4 +166,14 @@ async def login_end(user: Login):
 async def verify_cookie(token: Token):
     response = await run_in_threadpool(isTokenValidAndUser, token.access_token)
     return response
+
+@app.get("/predict_next_action/{username}", dependencies=[Depends(role_required("admin"))])
+async def get_next_action_prediction(username: str):
+    cache_key = f"next_action_prediction_{username}"
+    cached_data = await redis_client.get(cache_key)
+    if cached_data:
+        return json.loads(cached_data)
+    prediction = await predict_next_action(username)
+    await redis_client.set(cache_key, json.dumps(prediction), ex=1800)  # Cache for 30 minutes
+    return prediction
     
