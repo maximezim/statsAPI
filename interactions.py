@@ -36,7 +36,6 @@ class Login(BaseModel):
 
 class InteractionCreate(BaseModel):
     action: str
-    timestamp: datetime
 
 class Token(BaseModel):
     access_token: str
