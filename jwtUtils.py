@@ -3,6 +3,7 @@ import jwt
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+import logging
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
@@ -49,3 +50,17 @@ def role_required(required_role: str):
             )
         return current_user
     return role_dependency
+
+def get_current_username_optional(token: str = Depends(oauth2_scheme)):
+    if SECRET_KEY is None:
+        raise ValueError("SECRET_KEY not set")
+    if not token:
+        return "anonymous"
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            return "anonymous"
+        return username
+    except jwt.PyJWTError:
+        return "anonymous"

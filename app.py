@@ -13,7 +13,7 @@ from interactions import (
     get_interactions_by_user, init_db, create_user, login, get_user 
 )
 
-from jwtUtils import set_secret_key, role_required, create_access_token, get_current_user
+from jwtUtils import set_secret_key, role_required, create_access_token, get_current_user, get_current_username_optional
 from utils import compute_usage_stats, compute_interactions_stats, compute_feedback_stats
 from fastapi.concurrency import run_in_threadpool
 
@@ -50,21 +50,24 @@ async def startup_event():
         logging.info(f"Admin user '{admin_username}' already exists.")
 
 
-@app.post("/interactions/")
+@app.post("/interactions/submit")
 async def create_interaction(
     interaction: InteractionCreate,
-    current_user: dict = Depends(get_current_user)
+    username: str = Depends(get_current_username_optional, use_cache=False) 
 ):
-    await run_in_threadpool(insert_interaction, current_user['username'], interaction)
+    await run_in_threadpool(insert_interaction, username, interaction)
+    
+    # Invalidate relevant cache keys
     await redis_client.delete("usage_stats")
     await redis_client.delete("interactions_stats")
     await redis_client.delete("feedback_stats")
     await redis_client.delete("interactions_all")
-    await redis_client.delete(f"interactions_{current_user['username']}")
+    await redis_client.delete(f"interactions_{username}")
+    
     return {"message": "Interaction enregistrée"}
 
 
-@app.get("/interactions/", dependencies=[Depends(role_required("admin"))])
+@app.get("/interactions", dependencies=[Depends(role_required("admin"))])
 async def read_interactions():
     cache_key = "interactions_all"
     cached_data = await redis_client.get(cache_key)

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import bcrypt
+from typing import Optional
 
 Base = declarative_base()
 
@@ -70,7 +71,7 @@ def insert_interaction(username: str, interaction: InteractionCreate):
         db_interaction = Interaction(
             username=username,
             action=interaction.action,
-            timestamp=interaction.timestamp
+            timestamp=datetime.now()
         )
         db.add(db_interaction)
         db.commit()
