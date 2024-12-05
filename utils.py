@@ -5,7 +5,6 @@ import pandas as pd
 from sklearn.cluster import KMeans
 import asyncio
 from collections import defaultdict
-from pomegranate import HiddenMarkovModel, State, DiscreteDistribution
 
 def compute_usage_stats_sync():
     db = get_session()
@@ -117,97 +116,3 @@ def predict_next_action_sync(username):
 
 async def predict_next_action(username):
     return await asyncio.to_thread(predict_next_action_sync, username)
-
-
-def train_markov_model():
-    db = get_session()
-    interactions = db.query(Interaction).order_by(Interaction.timestamp).all()
-    db.close()
-
-    # Organize interactions per user
-    user_sequences = defaultdict(list)
-    for interaction in interactions:
-        user_sequences[interaction.username].append(interaction.action)
-
-    # Prepare data for training
-    sequences = [sequence for sequence in user_sequences.values() if len(sequence) > 1]
-
-    if not sequences:
-        logging.warning("Not enough data to train the Markov model.")
-        return None
-
-    # Define the model
-    model = HiddenMarkovModel()
-
-    # Extract unique actions
-    action_set = set(action for sequence in sequences for action in sequence)
-    distributions = {action: DiscreteDistribution({action: 1.0}) for action in action_set}
-
-    states = {action: State(distributions[action], name=action) for action in action_set}
-
-    # Add states to the model
-    for state in states.values():
-        model.add_state(state)
-
-    # Define transitions based on the data
-    transition_counts = defaultdict(lambda: defaultdict(int))
-    for sequence in sequences:
-        for i in range(len(sequence) - 1):
-            current_action = sequence[i]
-            next_action = sequence[i + 1]
-            transition_counts[current_action][next_action] += 1
-
-    # Add transitions to the model with probabilities
-    for current_action, next_actions in transition_counts.items():
-        total = sum(next_actions.values())
-        for next_action, count in next_actions.items():
-            probability = count / total
-            model.add_transition(states[current_action], states[next_action], probability)
-
-    # Finalize the model
-    model.bake()
-    return model
-
-def predict_next_action_ml(username, model):
-    db = get_session()
-    user_interactions = db.query(Interaction).filter_by(username=username).order_by(Interaction.timestamp).all()
-    db.close()
-
-    if not user_interactions:
-        return {"message": f"No interactions found for username {username}"}
-
-    last_action = user_interactions[-1].action
-
-    if last_action not in model.states:
-        return {"message": f"Action '{last_action}' not in model states."}
-
-    # Predict the next action using the model
-    try:
-        # Get transition probabilities from the current state
-        current_state = model.states[last_action]
-        transitions = current_state.transitions
-
-        if not transitions:
-            return {"message": f"No transitions available from action '{last_action}'."}
-
-        # Find the transition with the highest probability
-        predicted_transition = max(transitions, key=lambda t: t.probability)
-        predicted_action = predicted_transition.to_state.name
-        probability = predicted_transition.probability
-
-        return {
-            "username": username,
-            "last_action": last_action,
-            "predicted_next_action": predicted_action,
-            "probability": probability
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-
-  
-async def predict_next_action(username):
-    return await asyncio.to_thread(predict_next_action_sync, username)
-
-async def predict_next_action_ml_async(username, model):
-    return await asyncio.to_thread(predict_next_action_ml, username, model)
