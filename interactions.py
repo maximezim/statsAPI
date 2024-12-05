@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, UUID, create_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, scoped_session
+from sqlalchemy.pool import NullPool
 from pydantic import BaseModel
 from datetime import datetime
 import os
@@ -61,12 +62,11 @@ def get_database_url():
 
 def get_engine():
     db_url = get_database_url()
-    return create_engine(db_url)
+    return create_engine(db_url, poolclass=NullPool)
 
 def get_session():
     engine = get_engine()
-    SessionLocal = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
-
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return SessionLocal()
 
 def init_db():
@@ -74,7 +74,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
 
 def insert_interaction(username: str, interaction: InteractionCreate):
-    db: Session = get_session()
+    db = get_session()
     try:
         db_interaction = Interaction(
             username=username,
@@ -85,6 +85,9 @@ def insert_interaction(username: str, interaction: InteractionCreate):
         db.commit()
         db.refresh(db_interaction)
         return db_interaction
+    except Exception as e:
+        db.rollback()
+        raise
     finally:
         db.close()
 
