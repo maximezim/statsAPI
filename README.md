@@ -41,7 +41,8 @@ L'API permet également de prédire la prochaine action d'un utilisateur en fonc
 - **Récupération des Interactions** : Accès aux interactions globales ou spécifiques à un utilisateur.
 - **Statistiques Avancées** : Calcul de statistiques d'utilisation, d'interactions et de feedbacks avec mise en cache.
 - **Sécurité Renforcée** : Utilisation de JWT pour l'authentification et des rôles pour l'autorisation.
-- **Documentation Interactive** : Interface Swagger pour tester et documenter les endpoints.
+- **Documentation Interactive** : Interface Swagger pour tester et documenter les endpoints. (accessible à [http://localhost](http://localhost/docs#/))
+- **Calcul de la prochaine action par IA** : Utilisation des chaînes de Markov pour prédire la prochaine action d'un utilisateur.
 
 ## Technologies Utilisées
 
