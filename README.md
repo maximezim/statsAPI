@@ -2,6 +2,11 @@
 
 API permettant de gérer et d'analyser les interactions des utilisateurs. Cette API offre des fonctionnalités telles que la création d'utilisateurs, l'authentification, la soumission et la récupération des interactions, ainsi que des statistiques avancées sur l'utilisation et les feedbacks.
 
+# Calcul de la prochaine action par IA
+
+L'API permet également de prédire la prochaine action d'un utilisateur en fonction de ses actions précédentes. Cette fonctionnalité prédit la prochaine action avec une probabilité associée. Voir la démo plus bas.
+(#démo-prédiction-de-la-prochaine-action)
+
 ## Table des Matières
 
 - [API de Gestion des Interactions](#api-de-gestion-des-interactions)
@@ -334,3 +339,18 @@ Copier le code
 Erreur :
 403 Forbidden si l'utilisateur n'est pas un admin.
 401 Unauthorized si le token est invalide ou absent.
+
+## Démo Prédiction de la prochaine action:
+
+On a un utilisateur, ici nommé *acheteur*.
+On a enregistré son historique d'actions sur le site grâce à l'API.
+
+Premier scénario avec ces actions:
+connexion, navigation sur la page d'accueil, recherche de produits, consultation de fiches produits, ajout d'un produit au panier, modification de la quantité dans le panier, passage à la caisse, saisie des informations de livraison, sélection du mode de paiement, confirmation de la commande, déconnexion
+![image](https://github.com/user-attachments/assets/5a7f264d-f0d7-4129-b2d2-d3103b0211a1)
+
+Maintenant pour une suite d'actions plus complètes:
+connexion, navigation sur la page d'accueil, recherche de produits, consultation de fiches produits, ajout d'un produit au panier, modification de la quantité dans le panier, passage à la caisse, saisie des informations de livraison, sélection du mode de paiement, confirmation de la commande, déconnexion, connexion, recherche de produits, consultation de fiches produits, recherche de produits, consultation de fiches produits, recherche de produits, consultation de fiches produits, recherche de produits, consultation de fiches produits, ajout d'un produit au panier, recherche de produits, consultation de fiches produits
+
+![image](https://github.com/user-attachments/assets/31cea6b9-3431-4380-a2e8-f482310ad51d)
+
