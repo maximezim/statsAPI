@@ -17,7 +17,7 @@ services:
   web:
     build: .
     ports:
-      - "80:80"
+      - "8080:80"
     depends_on:
       db:
         condition: service_healthy
@@ -32,11 +32,11 @@ services:
   redis:
     image: redis:alpine
 
-  adminer:
-    image: adminer
-    restart: always
-    ports:
-      - 8080:8080
+  # adminer:
+  #   image: adminer
+  #   restart: always
+  #   ports:
+  #     - 8080:8080
 
 volumes:
   db_data:
