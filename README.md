@@ -213,6 +213,9 @@ Erreur :
 403 Forbidden si l'utilisateur n'est pas un admin.
 401 Unauthorized si le token est invalide ou absent.
 
+![image](https://github.com/user-attachments/assets/64dfc0a8-4946-493a-88bd-50b75125750e)
+
+
 ### Récupérer les Interactions d'un Utilisateur
 
 *Endpoint* : `/interactions/{username}`  
