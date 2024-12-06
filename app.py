@@ -74,7 +74,7 @@ async def create_interaction(
     interactions = await run_in_threadpool(get_interactions_by_user, username)
     interactions_data = jsonable_encoder(interactions)
     
-    await redis_client.set(cache_key, json.dumps(interactions_data), ex=300)  # 5 minutes expiration
+    await redis_client.set(cache_key, json.dumps(interactions_data), ex=30)  # 5 minutes expiration
     
     await redis_client.delete("usage_stats")
     await redis_client.delete("interactions_stats")
@@ -90,7 +90,7 @@ async def read_interactions():
         return json.loads(cached_data)
     interactions = await run_in_threadpool(get_all_interactions)
     interactions_data = jsonable_encoder(interactions)
-    await redis_client.set(cache_key, json.dumps(interactions_data), ex=300)  # Cache for 5 minutes
+    await redis_client.set(cache_key, json.dumps(interactions_data), ex=30)  # Cache for 5 minutes
     return interactions_data
 
 @app.get("/interactions/{username}", dependencies=[Depends(role_required("admin"))])
@@ -101,7 +101,7 @@ async def read_user_interactions(username: str):
         raise HTTPException(status_code=404, detail=f"No interactions found for user {username}")
     
     interactions_data = jsonable_encoder(interactions)
-    await redis_client.set(f"interactions_{username}", json.dumps(interactions_data), ex=300)
+    await redis_client.set(f"interactions_{username}", json.dumps(interactions_data), ex=30)
     return interactions_data
 
 
