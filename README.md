@@ -2,6 +2,9 @@
 
 API permettant de gérer et d'analyser les interactions des utilisateurs. Cette API offre des fonctionnalités telles que la création d'utilisateurs, l'authentification, la soumission et la récupération des interactions, ainsi que des statistiques avancées sur l'utilisation et les feedbacks.
 
+![image](https://github.com/user-attachments/assets/cf648518-a2f0-44b8-af7c-5d8e39b195f5)
+Dashboard administrateur accessible sur le site
+
 # Calcul de la prochaine action par IA
 
 L'API permet également de prédire la prochaine action d'un utilisateur en fonction de ses actions précédentes. Cette fonctionnalité prédit la prochaine action avec une probabilité associée. Voir la démo plus bas.
