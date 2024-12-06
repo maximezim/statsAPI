@@ -9,6 +9,7 @@ from datetime import datetime
 import os
 import bcrypt
 from typing import Optional
+import logging
 
 Base = declarative_base()
 
@@ -60,17 +61,23 @@ def get_database_url():
         raise ValueError("DATABASE_URL environment variable not set")
     return db_url
 
-def get_engine():
-    db_url = get_database_url()
-    return create_engine(db_url, poolclass=NullPool)
+engine = create_engine(
+    get_database_url(),
+    pool_pre_ping=True,      
+    pool_size=20,             
+    max_overflow=0,           
+)
 
-def get_session():
-    engine = get_engine()
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+def get_session() -> Session:
     return SessionLocal()
 
 def init_db():
-    engine = get_engine()
     Base.metadata.create_all(bind=engine)
 
 def insert_interaction(username: str, interaction: InteractionCreate):
@@ -92,54 +99,78 @@ def insert_interaction(username: str, interaction: InteractionCreate):
         db.close()
 
 def get_all_interactions():
-    db: Session = get_session()
+    db = get_session()
     try:
         interactions = db.query(Interaction).all()
-        return interactions
+        return list(interactions)
+    except Exception as e:
+        logging.error(f"Error retrieving all interactions: {e}")
+        raise
     finally:
         db.close()
 
 def get_interactions_by_user(username: str):
-    db: Session = get_session()
+    db = get_session()
     try:
         interactions = db.query(Interaction).filter(Interaction.username == username).all()
-        return interactions
+        return list(interactions)
+    except Exception as e:
+        logging.error(f"Error retrieving interactions for user {username}: {e}")
+        raise
     finally:
         db.close()
 
 def create_user(username: str, password: str, isAdmin: bool = False):
-    db: Session = get_session()
+    db = get_session()
     try:
-        passw = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        existing_user = db.query(User).filter(User.username == username).first()
+        if existing_user:
+            raise IntegrityError("Username already exists", None, None)
+
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         db_user = User(
             username=username,
-            password=passw.decode('utf-8'),
+            password=hashed_password,
             isAdmin=isAdmin
         )
         db.add(db_user)
         db.commit()
         db.refresh(db_user)
         return db_user
-    except IntegrityError:
+    except IntegrityError as ie:
+        db.rollback()
+        logging.error(f"Integrity error creating user {username}: {ie}")
+        raise
+    except Exception as e:
+        db.rollback()
+        logging.error(f"Error creating user {username}: {e}")
         raise
     finally:
         db.close()
 
-
 def login(username: str, password: str):
-    db: Session = get_session()
+    db = get_session()
     try:
         user = db.query(User).filter(User.username == username).first()
         if user and bcrypt.checkpw(password.encode('utf-8'), user.password.encode('utf-8')):
+            db.expunge(user)
             return user
         return None
+    except Exception as e:
+        logging.error(f"Error during login for user {username}: {e}")
+        raise
     finally:
         db.close()
 
 def get_user(username: str):
-    db: Session = get_session()
+    db = get_session()
     try:
         user = db.query(User).filter(User.username == username).first()
+        if user:
+            db.expunge(user)
         return user
+    except Exception as e:
+        logging.error(f"Error retrieving user {username}: {e}")
+        raise
     finally:
         db.close()

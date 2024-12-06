@@ -52,7 +52,7 @@ async def startup_event():
     await run_in_threadpool(init_db)
 
     admin_username = "admin"
-    admin_password = secrets.token_urlsafe(16)  
+    admin_password = secrets.token_urlsafe(16)
 
     admin_user = await run_in_threadpool(get_user, admin_username)
     if not admin_user:
@@ -173,12 +173,18 @@ async def verify_cookie(token: Token):
 @app.get("/predict_next_action/{username}", dependencies=[Depends(role_required("admin"))])
 async def get_next_action_prediction(username: str):
     cache_key = f"next_action_prediction_{username}"
-    cached_data = await redis_client.get(cache_key)
-    if cached_data:
-        return json.loads(cached_data)
-    prediction = await predict_next_action(username)
-    await redis_client.set(cache_key, json.dumps(prediction), ex=1800)  # Cache for 30 minutes
-    return prediction
+    try:
+        cached_data = await redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
+        prediction = await predict_next_action(username)
+        await redis_client.set(cache_key, json.dumps(prediction), ex=2)  # Cache for 10 sec
+        return prediction
+    except redis.RedisError as e:
+        logging.error(f"Redis error: {e}")
+        prediction = await predict_next_action(username)
+        return prediction
+
     
 @app.post("/set/user-interactions/list", dependencies=[Depends(role_required("admin"))])
 async def set_user_interactions_list(il: InteractionsList):
